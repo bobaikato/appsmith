@@ -25,9 +25,9 @@ execution:
 toolchains:
   node:
     provider: corepack
-    version: '22'
+    version: '^24.14.1'
     package_managers:
-      yarn: '4'
+      yarn: '^3.5.1'
 env:
   sources:
   - kind: dotenv
