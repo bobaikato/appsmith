@@ -21,7 +21,6 @@ execution:
       attachments:
         isolated_paths:
           - app/client/node_modules
-          - app/client/.yarn
 toolchains:
   node:
     provider: corepack
