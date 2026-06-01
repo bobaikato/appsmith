@@ -43,20 +43,20 @@ tasks:
     context: host
     category: setup
     description: Install repo dependencies.
-    run: cd app/client && corepack yarn install
+    run: cd app/client && corepack yarn set version 3.5.1 && corepack yarn install
     execution:
       default_mode: native
       modes:
         native:
           context: host
-          run: cd app/client && corepack yarn install
+          run: cd app/client && corepack yarn set version 3.5.1 && corepack yarn install
         container:
           context: app
-          run: cd app/client && corepack yarn install
+          run: cd app/client && corepack yarn set version 3.5.1 && corepack yarn install
     effects:
       network: true
       network_kind: dependency_hydration
-    notes: Install dependencies from the app/client workspace.
+    notes: Materialize the repo-pinned Yarn release, then install dependencies from the app/client workspace.
     internal: true
   setup:env:
     context: host
