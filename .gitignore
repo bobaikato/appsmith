@@ -49,3 +49,8 @@ mongodb*
 
 # ignore the task file as it will be different for different project implementations.
 TASKS.md
+
+# Ota local runtime artifacts
+.ota/state/*
+.ota/receipts/*
+.ota/proof/*
