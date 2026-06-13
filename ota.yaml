@@ -2,9 +2,13 @@ version: 1
 metadata:
   ota:
     minimum_version: "1.6.18"
+# Pressure-test note (local branch):
+# - Remove the server/backend pressure lane before an upstream PR unless we intentionally want the
+#   contract to claim mixed-stack client + Java server build truth rather than the narrower
+#   app/client slice.
 project:
   name: appsmith
-  description: Appsmith readiness slice covering app/client setup, lint, and unit test paths
+  description: Appsmith readiness slice covering app/client verification plus a provisional Java server build lane
 execution:
   default_context: host
   contexts:
@@ -27,6 +31,11 @@ toolchains:
     version: '^24.14.1'
     package_managers:
       yarn: '3.5.1'
+  java:
+    provider: sdkman
+    version: '25'
+tools:
+  maven: '>=3.9'
 env:
   sources:
   - kind: dotenv
@@ -70,6 +79,27 @@ tasks:
     effects:
       writes:
         - .env
+  server:build:
+    context: host
+    category: build
+    description: Build the Appsmith Java server distribution without tests.
+    run: cd app/server && ./build.sh -DskipTests
+    execution:
+      default_mode: native
+      modes:
+        native:
+          context: host
+          run: cd app/server && ./build.sh -DskipTests
+    requirements:
+      toolchains:
+        - java
+      tools:
+        maven: '>=3.9'
+    notes: |
+      Build the Java server distribution using the repo-documented backend path.
+      This is a provisional mixed-stack pressure lane and should stay local-only unless we
+      intentionally want the upstream contract to claim backend build truth in addition to the
+      app/client slice.
   test:
     context: host
     category: test
@@ -175,8 +205,8 @@ agent:
   bootstrap:
     ota:
       note: Only install ota if it is missing and installation is approved.
-      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.18 sh
-      powershell: $env:OTA_VERSION='v1.6.18'; irm https://dist.ota.run/install.ps1 | iex
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.20 sh
+      powershell: $env:OTA_VERSION='v1.6.20'; irm https://dist.ota.run/install.ps1 | iex
   notes: |
     Use `ota workflows` to inspect declared workflow paths.
     Use `ota up --workflow verify` when you want setup and verification through one declared path.
