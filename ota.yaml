@@ -168,8 +168,11 @@ workflows:
   default: verify
   verify:
     description: Canonical Appsmith app/client verification path for this contract slice.
-    setup:
-      task: setup:env
+    prepare:
+      action:
+        kind: copy_if_missing
+        from: .env.example
+        to: .env
     run:
       task: verify
     notes: |
