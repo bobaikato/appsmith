@@ -143,22 +143,12 @@ tasks:
       This is the truthful repo lint lane for the slice, and upstream warnings currently fail the
       task rather than behaving like a lightweight advisory pass.
   verify:
-    context: host
     category: test
     description: Aggregate lint and unit tests.
-    run: "true"
-    execution:
-      default_mode: native
-      modes:
-        native:
-          context: host
-          run: "true"
-        container:
-          context: app
-          run: "true"
-    depends_on:
-      - lint
-      - test
+    aggregate:
+      tasks:
+        - lint
+        - test
     safe_for_agent: true
     notes: |
       Contract-level verification path for app/client.
