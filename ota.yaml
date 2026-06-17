@@ -27,13 +27,17 @@ execution:
           - app/client/node_modules
 toolchains:
   node:
-    provider: corepack
     version: '^24.14.1'
     package_managers:
       yarn: '3.5.1'
+    fulfillment:
+      source: corepack
+      mode: run
   java:
-    provider: sdkman
     version: '25'
+    fulfillment:
+      source: sdkman
+      mode: run
 tools:
   maven: '>=3.9'
 env:
