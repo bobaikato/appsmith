@@ -62,7 +62,10 @@ jobs:
 
       - name: Enable corepack
         shell: bash
-        run: corepack enable
+        run: |
+          corepack enable
+          corepack prepare yarn@3.5.1 --activate
+          yarn --version
 
       - name: Setup Python 3.12
         uses: actions/setup-python@v6
