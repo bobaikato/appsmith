@@ -6,11 +6,11 @@ on:
       ota_repository:
         description: Ota source repository to build for this matrix run
         required: false
-        default: ota-run/ota
+        default: bobaikato/ota
       ota_ref:
         description: Ota branch, tag, or commit to build for this matrix run
         required: false
-        default: 5258c9d3ac74cb6d297ee64033a1e3e8731966e2
+        default: 1.6.21-implementation
   pull_request:
     paths:
       - "ota.yaml"
@@ -55,10 +55,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 24
+      - name: Setup Node.js 24.14.1
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: "24.14.1"
 
       - name: Enable corepack
         shell: bash
@@ -91,10 +91,10 @@ jobs:
           ruby-version: "3.3"
 
       - name: Install ota from source
-        uses: ota-run/ota/.github/actions/install-ota-from-source@5258c9d3ac74cb6d297ee64033a1e3e8731966e2
+        uses: ota-run/ota/.github/actions/install-ota-from-source@v1.6.21
         with:
-          repository: ${{ github.event.inputs.ota_repository || 'ota-run/ota' }}
-          ref: ${{ github.event.inputs.ota_ref || '5258c9d3ac74cb6d297ee64033a1e3e8731966e2' }}
+          repository: ${{ github.event.inputs.ota_repository || 'bobaikato/ota' }}
+          ref: ${{ github.event.inputs.ota_ref || '1.6.21-implementation' }}
 
       - name: Validate contract
         shell: bash
