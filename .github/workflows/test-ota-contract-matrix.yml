@@ -51,9 +51,7 @@ jobs:
               - 'ota.yaml'
               - '.github/workflows/test-ota-contract-matrix.yml'
 
-  matrix:
-    needs: classify
-    if: ${{ github.event_name == 'workflow_dispatch' || matrix.name != 'ubuntu-full' || needs.classify.outputs.root_contract_changed == 'true' }}
+  light_matrix:
     name: Ota Contract Matrix (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 210
@@ -61,11 +59,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: ubuntu-full
-            os: ubuntu-latest
-            contract_path: .
-            full_proof: true
-            container_proof: true
           - name: macos-dry
             os: macos-latest
             contract_path: .
@@ -236,6 +229,167 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ota-contract-matrix-${{ matrix.name }}-${{ matrix.contract_path == '.' && 'root' || 'helm-chart' }}
+          path: |
+            ota-validate.json
+            ota-execution-topology.json
+            ota-tasks.json
+            ota-tasks-container.json
+
+  root_full:
+    needs: classify
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.classify.outputs.root_contract_changed == 'true' }}
+    name: Ota Contract Matrix (ubuntu-full)
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 24.14.1
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.14.1"
+
+      - name: Enable corepack
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare yarn@3.5.1 --activate
+          yarn --version
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Setup Go 1.24
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.x"
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Setup Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup Ruby 3.3
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install ota from source
+        uses: ota-run/ota/.github/actions/install-ota-from-source@v1.6.20
+        with:
+          repository: ${{ github.event.inputs.ota_repository || 'bobaikato/ota' }}
+          ref: ${{ github.event.inputs.ota_ref || '1.6.21-implementation' }}
+
+      - name: Validate contract
+        shell: bash
+        run: |
+          ota validate --json . > ota-validate.json
+          ota validate .
+
+      - name: Doctor contract
+        shell: bash
+        run: ota doctor .
+
+      - name: List task surfaces
+        shell: bash
+        run: |
+          ota tasks --use .
+          ota tasks --safe --use .
+          ota tasks --unsafe --use .
+
+      - name: List workflows
+        shell: bash
+        run: ota workflows .
+
+      - name: Export execution topology
+        shell: bash
+        run: ota execution topology --json . > ota-execution-topology.json
+
+      - name: Dry-run all non-internal tasks (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ota tasks --json . > ota-tasks.json
+          node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks.json","utf8")).tasks||[];for(const x of t)console.log(x.name);' > ota-task-names.txt
+          while IFS= read -r task; do
+            [ -z "$task" ] && continue
+            echo ">>> [native dry-run] $task"
+            ota run "$task" --native --dry-run .
+          done < ota-task-names.txt
+
+      - name: Dry-run verify workflow (native)
+        shell: bash
+        run: ota up --workflow verify --native --dry-run .
+
+      - name: Dry-run all non-internal tasks (container)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ota tasks --json --via container . > ota-tasks-container.json
+          node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks-container.json","utf8")).tasks||[];for(const x of t)console.log(x.name);' > ota-container-task-names.txt
+          while IFS= read -r task; do
+            [ -z "$task" ] && continue
+            echo ">>> [container dry-run] $task"
+            ota run "$task" --container --dry-run .
+          done < ota-container-task-names.txt
+
+      - name: Dry-run verify workflow (container)
+        shell: bash
+        run: ota up --workflow verify --container --dry-run .
+
+      - name: Execute heavy proof tasks (native, Ubuntu)
+        timeout-minutes: 120
+        shell: bash
+        run: |
+          set -euo pipefail
+          ota tasks --json . > ota-tasks.json
+          node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks.json","utf8")).tasks||[];for(const x of t){if((x.category||"")!=="dev")console.log(x.name)}' > ota-native-exec-task-names.txt
+          while IFS= read -r task; do
+            [ -z "$task" ] && continue
+            echo ">>> [native heavy proof] $task"
+            ota run "$task" --native --stream .
+          done < ota-native-exec-task-names.txt
+
+      - name: Execute heavy verify workflow proof (native, Ubuntu)
+        timeout-minutes: 90
+        shell: bash
+        run: ota up --workflow verify --native --stream .
+
+      - name: Execute heavy proof tasks (container, Ubuntu)
+        timeout-minutes: 120
+        shell: bash
+        run: |
+          set -euo pipefail
+          ota tasks --json --via container . > ota-tasks-container.json
+          node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks-container.json","utf8")).tasks||[];for(const x of t){if((x.category||"")!=="dev")console.log(x.name)}' > ota-container-exec-task-names.txt
+          while IFS= read -r task; do
+            [ -z "$task" ] && continue
+            echo ">>> [container heavy proof] $task"
+            ota run "$task" --container --stream .
+          done < ota-container-exec-task-names.txt
+
+      - name: Execute heavy verify workflow proof (container, Ubuntu)
+        timeout-minutes: 90
+        shell: bash
+        run: ota up --workflow verify --container --stream .
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ota-contract-matrix-ubuntu-full-root
           path: |
             ota-validate.json
             ota-execution-topology.json
