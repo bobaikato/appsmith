@@ -1,0 +1,217 @@
+#
+#                █████
+#               ░░███
+#       ██████  ███████    ██████
+#      ███░░███░░░███░    ░░░░░███
+#     ░███ ░███  ░███      ███████
+#     ░███ ░███  ░███ ███ ███░░███
+#     ░░██████   ░░█████ ░░████████
+#      ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#   Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#   DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#   Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#   You may not use this file except in compliance with that License.
+#   Unless required by applicable law or agreed to in writing, software distributed under the
+#   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#   either express or implied. See the License for the specific language governing permissions
+#   and limitations under the License.
+#
+#   If you need additional information or have any questions, please email: os@ota.run
+
+version: 1
+
+project:
+  name: appsmith-helm-chart
+  description: Appsmith Helm chart slice covering dependency hydration, chart verification, packaging, and local repository index generation
+  type: service
+
+tools:
+  helm:
+    version: ">=3.8"
+    platforms:
+      linux:
+        acquisition:
+          provider: apt
+          package: helm
+      macos:
+        acquisition:
+          provider: brew
+          package: helm
+          source_config:
+            tap_name: homebrew/core
+      windows:
+        acquisition:
+          provider: winget
+          package: Helm.Helm
+
+tasks:
+  setup:
+    description: Hydrate Helm chart dependencies declared in Chart.yaml
+    category: setup
+    prepare:
+      kind: dependency_hydration
+      medium: package_dependencies
+      source:
+        kind: helm
+        cwd: .
+    requirements:
+      tools:
+        helm: "*"
+    effects:
+      writes:
+        - charts
+      network: true
+      network_kind: dependency_hydration
+    safe_for_agent: true
+
+  lint:
+    description: Lint the Appsmith Helm chart
+    category: verify
+    adapter_inputs:
+      helm:
+        cwd: .
+        chart: .
+    command:
+      exe: helm
+      args:
+        - lint
+    depends_on:
+      - setup
+    requirements:
+      tools:
+        helm: "*"
+    safe_for_agent: true
+
+  render:
+    description: Render the Appsmith Helm chart locally without mutating a cluster
+    category: verify
+    adapter_inputs:
+      helm:
+        cwd: .
+        chart: .
+        release_name: appsmith
+        namespace: appsmith
+    command:
+      exe: helm
+      args:
+        - template
+        - --values
+        - values.yaml
+    depends_on:
+      - setup
+    requirements:
+      tools:
+        helm: "*"
+    safe_for_agent: true
+
+  package:
+    description: Package the Appsmith Helm chart as a release artifact
+    category: build
+    command:
+      exe: helm
+      args:
+        - package
+        - .
+      cwd: .
+    depends_on:
+      - setup
+    requirements:
+      tools:
+        helm: "*"
+    effects:
+      writes:
+        - appsmith-3.8.1.tgz
+    safe_for_agent: true
+
+  repo:index:
+    description: Generate a local Helm repository index for the packaged chart
+    category: build
+    command:
+      exe: helm
+      args:
+        - repo
+        - index
+        - .
+        - --url
+        - https://helm.appsmith.com
+      cwd: .
+    depends_on:
+      - package
+    requirements:
+      tools:
+        helm: "*"
+    effects:
+      writes:
+        - index.yaml
+    safe_for_agent: true
+
+  verify:
+    description: Run the canonical Appsmith Helm chart verification slice
+    category: verify
+    aggregate:
+      tasks:
+        - lint
+        - render
+        - package
+        - repo:index
+    safe_for_agent: true
+
+workflows:
+  default: verify
+  verify:
+    description: Canonical Appsmith Helm chart preparation and verification path
+    setup:
+      task: setup
+    run:
+      task: verify
+    notes: |
+      This slice proves dependency hydration, finite chart verification, packaging, and local
+      Helm repository index generation. It does not claim live Kubernetes install/runtime proof.
+
+agent:
+  posture: readiness_strict
+  entrypoint: setup
+  default_task: verify
+  safe_tasks:
+    - setup
+    - lint
+    - render
+    - package
+    - repo:index
+    - verify
+  verify_after_changes:
+    - verify
+  writable_paths:
+    - charts
+    - docs
+    - images
+    - templates
+    - tests
+    - values.yaml
+    - values.schema.json
+    - README.md
+    - Setup-https.md
+    - Publish-helm-chart.md
+    - appsmith-3.8.1.tgz
+    - index.yaml
+  protected_paths:
+    - .helmignore
+    - Chart.lock
+    - Chart.yaml
+    - ota.yaml
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.21 sh
+      powershell: $env:OTA_VERSION='v1.6.21'; irm https://dist.ota.run/install.ps1 | iex
+  notes: |
+    Start with `ota doctor`, then `ota validate`, then `ota tasks --use`.
+    Use `ota up --workflow verify` when you want the declared setup plus finite verification path
+    for this Helm chart slice.
+
+metadata:
+  ota:
+    minimum_version: "1.6.21"

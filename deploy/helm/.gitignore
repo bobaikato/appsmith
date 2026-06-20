@@ -1,0 +1,5 @@
+.ota/state/
+.ota/receipts/
+.ota/proof/
+appsmith-*.tgz
+index.yaml

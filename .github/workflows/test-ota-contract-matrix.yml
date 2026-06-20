@@ -14,10 +14,14 @@ on:
   pull_request:
     paths:
       - "ota.yaml"
+      - "deploy/helm/ota.yaml"
+      - "deploy/helm/.gitignore"
       - ".github/workflows/test-ota-contract-matrix.yml"
   push:
     paths:
       - "ota.yaml"
+      - "deploy/helm/ota.yaml"
+      - "deploy/helm/.gitignore"
       - ".github/workflows/test-ota-contract-matrix.yml"
 
 concurrency:
@@ -41,13 +45,24 @@ jobs:
         include:
           - name: ubuntu-full
             os: ubuntu-latest
+            contract_path: .
             full_proof: true
+            container_proof: true
           - name: macos-dry
             os: macos-latest
+            contract_path: .
             full_proof: false
+            container_proof: false
           - name: windows-dry
             os: windows-latest
+            contract_path: .
             full_proof: false
+            container_proof: false
+          - name: ubuntu-helm-chart-native
+            os: ubuntu-latest
+            contract_path: deploy/helm
+            full_proof: true
+            container_proof: false
 
     steps:
       - name: Checkout
@@ -102,61 +117,61 @@ jobs:
       - name: Validate contract
         shell: bash
         run: |
-          ota validate --json . > ota-validate.json
-          ota validate .
+          ota validate --json "${{ matrix.contract_path }}" > ota-validate.json
+          ota validate "${{ matrix.contract_path }}"
 
       - name: Doctor contract
         shell: bash
-        run: ota doctor .
+        run: ota doctor "${{ matrix.contract_path }}"
 
       - name: List task surfaces
         shell: bash
         run: |
-          ota tasks --use .
-          ota tasks --safe --use .
-          ota tasks --unsafe --use .
+          ota tasks --use "${{ matrix.contract_path }}"
+          ota tasks --safe --use "${{ matrix.contract_path }}"
+          ota tasks --unsafe --use "${{ matrix.contract_path }}"
 
       - name: List workflows
         shell: bash
-        run: ota workflows .
+        run: ota workflows "${{ matrix.contract_path }}"
 
       - name: Export execution topology
         shell: bash
-        run: ota execution topology --json . > ota-execution-topology.json
+        run: ota execution topology --json "${{ matrix.contract_path }}" > ota-execution-topology.json
 
       - name: Dry-run all non-internal tasks (native)
         shell: bash
         run: |
           set -euo pipefail
-          ota tasks --json . > ota-tasks.json
+          ota tasks --json "${{ matrix.contract_path }}" > ota-tasks.json
           node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks.json","utf8")).tasks||[];for(const x of t)console.log(x.name);' > ota-task-names.txt
           while IFS= read -r task; do
             [ -z "$task" ] && continue
             echo ">>> [native dry-run] $task"
-            ota run "$task" --native --dry-run .
+            ota run "$task" --native --dry-run "${{ matrix.contract_path }}"
           done < ota-task-names.txt
 
       - name: Dry-run verify workflow (native)
         shell: bash
-        run: ota up --workflow verify --native --dry-run .
+        run: ota up --workflow verify --native --dry-run "${{ matrix.contract_path }}"
 
       - name: Dry-run all non-internal tasks (container)
-        if: ${{ matrix.full_proof }}
+        if: ${{ matrix.container_proof }}
         shell: bash
         run: |
           set -euo pipefail
-          ota tasks --json --via container . > ota-tasks-container.json
+          ota tasks --json --via container "${{ matrix.contract_path }}" > ota-tasks-container.json
           node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks-container.json","utf8")).tasks||[];for(const x of t)console.log(x.name);' > ota-container-task-names.txt
           while IFS= read -r task; do
             [ -z "$task" ] && continue
             echo ">>> [container dry-run] $task"
-            ota run "$task" --container --dry-run .
+            ota run "$task" --container --dry-run "${{ matrix.contract_path }}"
           done < ota-container-task-names.txt
 
       - name: Dry-run verify workflow (container)
-        if: ${{ matrix.full_proof }}
+        if: ${{ matrix.container_proof }}
         shell: bash
-        run: ota up --workflow verify --container --dry-run .
+        run: ota up --workflow verify --container --dry-run "${{ matrix.contract_path }}"
 
       - name: Execute heavy proof tasks (native, Ubuntu)
         if: ${{ matrix.full_proof }}
@@ -164,45 +179,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ota tasks --json . > ota-tasks.json
+          ota tasks --json "${{ matrix.contract_path }}" > ota-tasks.json
           node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks.json","utf8")).tasks||[];for(const x of t){if((x.category||"")!=="dev")console.log(x.name)}' > ota-native-exec-task-names.txt
           while IFS= read -r task; do
             [ -z "$task" ] && continue
             echo ">>> [native heavy proof] $task"
-            ota run "$task" --native --stream .
+            ota run "$task" --native --stream "${{ matrix.contract_path }}"
           done < ota-native-exec-task-names.txt
 
       - name: Execute heavy verify workflow proof (native, Ubuntu)
         if: ${{ matrix.full_proof }}
         timeout-minutes: 90
         shell: bash
-        run: ota up --workflow verify --native --stream .
+        run: ota up --workflow verify --native --stream "${{ matrix.contract_path }}"
 
       - name: Execute heavy proof tasks (container, Ubuntu)
-        if: ${{ matrix.full_proof }}
+        if: ${{ matrix.container_proof }}
         timeout-minutes: 120
         shell: bash
         run: |
           set -euo pipefail
-          ota tasks --json --via container . > ota-tasks-container.json
+          ota tasks --json --via container "${{ matrix.contract_path }}" > ota-tasks-container.json
           node -e 'const fs=require("fs");const t=JSON.parse(fs.readFileSync("ota-tasks-container.json","utf8")).tasks||[];for(const x of t){if((x.category||"")!=="dev")console.log(x.name)}' > ota-container-exec-task-names.txt
           while IFS= read -r task; do
             [ -z "$task" ] && continue
             echo ">>> [container heavy proof] $task"
-            ota run "$task" --container --stream .
+            ota run "$task" --container --stream "${{ matrix.contract_path }}"
           done < ota-container-exec-task-names.txt
 
       - name: Execute heavy verify workflow proof (container, Ubuntu)
-        if: ${{ matrix.full_proof }}
+        if: ${{ matrix.container_proof }}
         timeout-minutes: 90
         shell: bash
-        run: ota up --workflow verify --container --stream .
+        run: ota up --workflow verify --container --stream "${{ matrix.contract_path }}"
 
       - name: Upload artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ota-contract-matrix-${{ matrix.name }}
+          name: ota-contract-matrix-${{ matrix.name }}-${{ matrix.contract_path == '.' && 'root' || 'helm-chart' }}
           path: |
             ota-validate.json
             ota-execution-topology.json
