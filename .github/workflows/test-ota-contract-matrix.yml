@@ -30,12 +30,30 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   OTA_NO_UPDATE_CHECK: "1"
 
 jobs:
+  classify:
+    name: Classify Ota contract change scope
+    runs-on: ubuntu-latest
+    outputs:
+      root_contract_changed: ${{ steps.filter.outputs.root_contract }}
+    steps:
+      - name: Detect changed Ota contract paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            root_contract:
+              - 'ota.yaml'
+              - '.github/workflows/test-ota-contract-matrix.yml'
+
   matrix:
+    needs: classify
+    if: ${{ github.event_name == 'workflow_dispatch' || matrix.name != 'ubuntu-full' || needs.classify.outputs.root_contract_changed == 'true' }}
     name: Ota Contract Matrix (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 210
