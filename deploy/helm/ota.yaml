@@ -182,8 +182,8 @@ agent:
   bootstrap:
     ota:
       note: Only install ota if it is missing and installation is approved.
-      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.21 sh
-      powershell: $env:OTA_VERSION='v1.6.21'; irm https://dist.ota.run/install.ps1 | iex
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.22 sh
+      powershell: $env:OTA_VERSION='v1.6.22'; irm https://dist.ota.run/install.ps1 | iex
   notes: |
     Start with `ota doctor`, then `ota validate`, then `ota tasks --use`.
     Use `ota up --workflow verify` when you want the declared setup plus finite verification path
